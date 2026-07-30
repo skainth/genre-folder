@@ -1,20 +1,33 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { useOrganizerApp } from './src/controllers/useOrganizerApp';
+import OrganizerScreen from './src/ui/OrganizerScreen';
+import SyncProgressScreen from './src/ui/SyncProgressScreen';
 
 export default function App() {
+  const app = useOrganizerApp();
+
+  if (app.activeScreen === 'progress') {
+    return (
+      <SyncProgressScreen
+        run={app.syncProgress}
+        onViewLiveLog={app.handleViewLiveLog}
+        onBackToMain={app.handleBackToMain}
+      />
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <OrganizerScreen
+      sourceFolder={app.sourceFolder}
+      targetFolder={app.targetFolder}
+      liveApplyReady={app.liveApplyReady}
+      sourceMode={app.sourceMode}
+      filesWithError={app.filesWithError}
+      pendingDeleteCount={app.pendingDeleteCount}
+      pendingUpdateCount={app.pendingUpdateCount}
+      lastRunText={app.lastRunText}
+      onSelectFolder={app.handleFolderSelection}
+      onPreview={app.handlePreview}
+      onApply={app.handleApply}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
