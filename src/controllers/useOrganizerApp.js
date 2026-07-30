@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { applyPlanWithProgress, scanAndPlan } from '../logic/organizer';
-import { demoConfig } from '../logic/mockSourceFiles';
+import { defaultConfig } from '../logic/defaultConfig';
 import { SCREEN, SOURCE_MODE } from '../logic/appConstants';
 import { loadArtifacts, saveArtifacts } from '../logic/storage';
 import {
@@ -38,7 +38,7 @@ export function useOrganizerApp() {
 
     const runtimeConfig = useMemo(
         () => ({
-            ...demoConfig,
+            ...defaultConfig,
             source: sourceFolder,
             target: targetFolder,
         }),
