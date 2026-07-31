@@ -11,20 +11,7 @@ export function formatLastRunLabel(log) {
 }
 
 export function notify(message) {
-    if (typeof globalThis !== 'undefined' && typeof globalThis.alert === 'function') {
-        globalThis.alert(message);
-        return;
-    }
-
     if (Alert && typeof Alert.alert === 'function') {
         Alert.alert('Notice', String(message || 'Done.'));
     }
-}
-
-export function askPath(label, currentValue) {
-    if (typeof globalThis !== 'undefined' && typeof globalThis.prompt === 'function') {
-        const next = globalThis.prompt(`Set ${label}`, currentValue);
-        return (next || '').trim();
-    }
-    return '';
 }

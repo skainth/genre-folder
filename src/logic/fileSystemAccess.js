@@ -1,8 +1,12 @@
+import { Directory, File } from 'expo-file-system';
+import { Platform } from 'react-native';
+
+function isNativeDirectoryPickerSupported() {
+    return Platform.OS === 'android' && typeof Directory.pickDirectoryAsync === 'function';
+}
+
 function isDirectoryPickerSupported() {
-    return (
-        typeof globalThis !== 'undefined' &&
-        typeof globalThis.showDirectoryPicker === 'function'
-    );
+    return isNativeDirectoryPickerSupported();
 }
 
 function splitNameAndExt(filename) {
@@ -34,7 +38,7 @@ function inferGenreFromPath(relativePath) {
 }
 
 async function readFileEntry(entry, rootPath, relativePath) {
-    const file = await entry.getFile();
+    const file = entry instanceof File ? entry : await entry.getFile();
     const metadata = {
         title: splitNameAndExt(file.name).title,
         artist: [],
@@ -42,61 +46,67 @@ async function readFileEntry(entry, rootPath, relativePath) {
         album: '',
     };
 
+    const lastModified = Number(file.lastModified || file.modificationTime || Date.now());
+
     return {
         filepath: `${rootPath}/${relativePath}`,
-        ctime: Number(file.lastModified || Date.now()),
-        mtime: Number(file.lastModified || Date.now()),
+        ctime: lastModified,
+        mtime: lastModified,
         metadata,
         sourceHandle: entry,
     };
 }
 
-async function traverseDirectory(dirHandle, rootPath, currentRelativePath, files) {
-    // Uses File System Access API handles to recursively enumerate the selected tree.
-    for await (const entry of dirHandle.values()) {
-        const relativePath = currentRelativePath
-            ? `${currentRelativePath}/${entry.name}`
-            : entry.name;
+async function traverseNativeDirectory(directory, rootPath, currentRelativePath, files) {
+    const entries = directory.list();
+    for (const entry of entries) {
+        const relativePath = currentRelativePath ? `${currentRelativePath}/${entry.name}` : entry.name;
 
-        if (entry.kind === 'directory') {
-            await traverseDirectory(entry, rootPath, relativePath, files);
+        if (entry instanceof Directory) {
+            await traverseNativeDirectory(entry, rootPath, relativePath, files);
             continue;
         }
 
-        if (entry.kind === 'file') {
-            const item = await readFileEntry(entry, rootPath, relativePath);
-            files.push(item);
-        }
+        const item = await readFileEntry(entry, rootPath, relativePath);
+        files.push(item);
     }
 }
 
+function directoryDisplayPath(directory) {
+    const raw = String(directory?.uri || '');
+    if (!raw) {
+        return '';
+    }
+    return raw.replace(/\/+$/, '');
+}
+
 export async function pickDirectoryTree() {
-    if (!isDirectoryPickerSupported()) {
-        throw new Error('Folder picker is not supported in this browser. Use a Chromium-based browser.');
+    if (!isNativeDirectoryPickerSupported()) {
+        throw new Error('Android directory picker is not available in this build.');
     }
 
-    const handle = await globalThis.showDirectoryPicker({ mode: 'read' });
-    const rootPath = `/picked/${handle.name}`;
+    const directory = await Directory.pickDirectoryAsync();
+    const rootPath = directoryDisplayPath(directory);
     const files = [];
 
-    await traverseDirectory(handle, rootPath, '', files);
+    await traverseNativeDirectory(directory, rootPath, '', files);
 
     return {
-        handle,
+        handle: directory,
         rootPath,
         files,
     };
 }
 
 export async function pickDirectoryHandle(mode = 'readwrite') {
-    if (!isDirectoryPickerSupported()) {
-        throw new Error('Folder picker is not supported in this browser. Use a Chromium-based browser.');
+    if (!isNativeDirectoryPickerSupported()) {
+        throw new Error('Android directory picker is not available in this build.');
     }
 
-    const handle = await globalThis.showDirectoryPicker({ mode });
+    const directory = await Directory.pickDirectoryAsync();
     return {
-        handle,
-        rootPath: `/picked/${handle.name}`,
+        handle: directory,
+        rootPath: directoryDisplayPath(directory),
     };
 }
 
@@ -125,6 +135,26 @@ export async function copyFileToTarget(params) {
     const { sourceFileHandle, targetRootHandle, targetRootPath, targetPath } = params;
     if (!sourceFileHandle || !targetRootHandle) {
         throw new Error('Missing source or target handle for copy operation.');
+    }
+
+    if (targetRootHandle instanceof Directory && sourceFileHandle instanceof File) {
+        const relativeTarget = toRelativePath(targetRootPath, targetPath);
+        const segments = relativeTarget.split('/').filter(Boolean);
+        if (segments.length === 0) {
+            throw new Error(`Invalid target path: ${targetPath}`);
+        }
+
+        const fileName = segments[segments.length - 1];
+        const dirParts = segments.slice(0, -1);
+        let targetDirectory = targetRootHandle;
+        for (const part of dirParts) {
+            targetDirectory = targetDirectory.createDirectory(part);
+            targetDirectory.create({ idempotent: true, intermediates: true });
+        }
+
+        const destinationFile = new File(targetDirectory, fileName);
+        await sourceFileHandle.copy(destinationFile, { overwrite: true });
+        return;
     }
 
     const relativeTarget = toRelativePath(targetRootPath, targetPath);
@@ -170,6 +200,27 @@ export async function deleteFileFromTarget(params) {
 
     const fileName = segments[segments.length - 1];
     const dirParts = segments.slice(0, -1);
+
+    if (targetRootHandle instanceof Directory) {
+        try {
+            let parent = targetRootHandle;
+            for (const part of dirParts) {
+                parent = new Directory(parent, part);
+            }
+            const file = new File(parent, fileName);
+            if (!file.exists) {
+                return false;
+            }
+            file.delete();
+            return true;
+        } catch (error) {
+            const name = String(error?.name || '');
+            if (name === 'NotFoundError') {
+                return false;
+            }
+            throw new Error(`Failed to delete ${targetPath}: ${String(error?.message || error)}`);
+        }
+    }
 
     try {
         let parent = targetRootHandle;

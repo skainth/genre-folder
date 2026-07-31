@@ -1,4 +1,7 @@
-const STORAGE_KEY = 'genre2.organizer.artifacts.v1';
+import { Directory, File, Paths } from 'expo-file-system';
+
+const STORAGE_DIR = new Directory(Paths.document, 'mp3-sorter');
+const STORAGE_FILE = new File(STORAGE_DIR, 'artifacts.json');
 
 function createDefaultArtifacts() {
     return {
@@ -9,10 +12,6 @@ function createDefaultArtifacts() {
         updateFlag: null,
         log: [],
     };
-}
-
-function hasLocalStorage() {
-    return typeof globalThis !== 'undefined' && typeof globalThis.localStorage !== 'undefined';
 }
 
 function sanitizeArtifacts(artifacts) {
@@ -27,12 +26,12 @@ function sanitizeArtifacts(artifacts) {
 }
 
 export function loadArtifacts() {
-    if (!hasLocalStorage()) {
-        return createDefaultArtifacts();
-    }
-
     try {
-        const raw = globalThis.localStorage.getItem(STORAGE_KEY);
+        if (!STORAGE_FILE.exists) {
+            return createDefaultArtifacts();
+        }
+
+        const raw = STORAGE_FILE.textSync();
         if (!raw) {
             return createDefaultArtifacts();
         }
@@ -45,14 +44,15 @@ export function loadArtifacts() {
 }
 
 export function saveArtifacts(artifacts) {
-    if (!hasLocalStorage()) {
-        return;
-    }
-
     try {
         const normalized = sanitizeArtifacts(artifacts);
-        globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+
+        if (!STORAGE_DIR.exists) {
+            STORAGE_DIR.create({ idempotent: true, intermediates: true });
+        }
+
+        STORAGE_FILE.write(JSON.stringify(normalized));
     } catch (_error) {
-        // Ignore quota/storage errors; app can continue in memory for current session.
+        // Ignore storage errors; app can continue in memory for the current session.
     }
 }

@@ -16,7 +16,7 @@ import {
     pickDirectoryTree,
     supportsDirectoryPicker,
 } from '../logic/fileSystemAccess';
-import { askPath, formatLastRunLabel, notify } from '../utils/uiHelpers';
+import { formatLastRunLabel, notify } from '../utils/uiHelpers';
 
 function statsCount(stats, key) {
     return Object.keys((stats && stats[key]) || {}).length;
@@ -149,13 +149,7 @@ export function useOrganizerApp() {
                 return;
             }
 
-            const next = askPath('source folder', sourceFolder);
-            if (next) {
-                setSourceFolder(next);
-                setSourceFiles([]);
-                setSourceMode(SOURCE_MODE.MANUAL);
-                notify('Manual path was set. Use folder picker mode for live filesystem sync.');
-            }
+            notify('Source folder picking is unavailable on this device.');
             return;
         }
 
@@ -173,11 +167,7 @@ export function useOrganizerApp() {
             return;
         }
 
-        const next = askPath('target folder', targetFolder);
-        if (next) {
-            setTargetFolder(next);
-            setTargetDirectory(null);
-        }
+        notify('Target folder picking is unavailable on this device.');
     }
 
     function handlePreview() {

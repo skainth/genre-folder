@@ -3,17 +3,12 @@
     "name": "mp3-sorter",
     "slug": "mp3-sorter",
     "version": "1.0.0",
+    "platforms": ["android"],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "android": {
       "package": "com.kaintsuk.mp3sorter"
-    },
-    "ios": {
-      "supportsTablet": true
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
     }
   }
 }
