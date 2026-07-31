@@ -7,9 +7,9 @@ import {
     buildDirectoryHandleFromUri,
     copyFileToTarget,
     deleteFileFromTarget,
+    isRemovableStorageRootPath,
     loadDirectoryTreeFromUri,
     pickDirectoryHandle,
-    pickDirectoryTree,
     supportsDirectoryPicker,
 } from '../logic/fileSystemAccess';
 import {
@@ -23,6 +23,26 @@ import { formatLastRunLabel, notify } from '../utils/uiHelpers';
 
 function statsCount(stats, key) {
     return Object.keys((stats && stats[key]) || {}).length;
+}
+
+function waitForNextFrame() {
+    return new Promise((resolve) => {
+        requestAnimationFrame(() => resolve());
+    });
+}
+
+function normalizeComparablePath(path) {
+    return String(path || '')
+        .trim()
+        .replace(/\\/g, '/')
+        .replace(/\/+$/, '')
+        .toLowerCase();
+}
+
+function areSameFolderPaths(left, right) {
+    const a = normalizeComparablePath(left);
+    const b = normalizeComparablePath(right);
+    return Boolean(a) && a === b;
 }
 
 export function useOrganizerApp() {
@@ -104,6 +124,19 @@ export function useOrganizerApp() {
             } catch (_error) {
                 setTargetFolderState('');
             }
+        }
+
+        if (sourceFolderRef.current && isRemovableStorageRootPath(sourceFolderRef.current)) {
+            setSourceFolderState('');
+            setSourceDirectory(null);
+            setSourceFiles([]);
+            notify('Source folder cannot be on removable storage. Choose internal phone storage.');
+        }
+
+        if (areSameFolderPaths(sourceFolderRef.current, targetFolderRef.current)) {
+            setTargetFolderState('');
+            setTargetDirectory(null);
+            notify('Source and target folders must be different. Target selection was cleared.');
         }
 
         persistRuntimeFolders(sourceFolderRef.current, targetFolderRef.current);
@@ -211,13 +244,35 @@ export function useOrganizerApp() {
         if (kind === 'source') {
             if (supportsDirectoryPicker()) {
                 try {
-                    const picked = await pickDirectoryTree();
+                    const picked = await pickDirectoryHandle('read');
+
+                    if (isRemovableStorageRootPath(picked.rootPath)) {
+                        notify('Source folder cannot be on removable storage. Choose internal phone storage.');
+                        return;
+                    }
+
+                    if (areSameFolderPaths(picked.rootPath, targetFolderRef.current)) {
+                        notify('Source and target folders must be different. Choose another source folder.');
+                        return;
+                    }
+
                     setSourceFolderState(picked.rootPath);
-                    setSourceFiles(picked.files);
-                    setSourceDirectory({ handle: picked.handle, rootPath: picked.rootPath });
+                    setSourceFiles([]);
+                    setSourceDirectory(picked);
                     setSourceMode(SOURCE_MODE.FILESYSTEM);
                     persistRuntimeFolders(picked.rootPath, targetFolderRef.current);
-                    notify(`Selected ${picked.files.length} file(s) from ${picked.rootPath}`);
+
+                    try {
+                        const loaded = await loadDirectoryTreeFromUri(picked.rootPath);
+                        setSourceFolderState(loaded.rootPath);
+                        setSourceFiles(loaded.files);
+                        setSourceDirectory({ handle: loaded.handle, rootPath: loaded.rootPath });
+                        notify(`Selected ${loaded.files.length} file(s) from ${loaded.rootPath}`);
+                    } catch (loadError) {
+                        notify(
+                            `Source folder selected: ${picked.rootPath}. Could not read files yet; try selecting it again if needed.`
+                        );
+                    }
                 } catch (error) {
                     if (String(error?.name || '') !== 'AbortError') {
                         notify(String(error?.message || error));
@@ -233,6 +288,12 @@ export function useOrganizerApp() {
         if (supportsDirectoryPicker()) {
             try {
                 const picked = await pickDirectoryHandle('readwrite');
+
+                if (areSameFolderPaths(sourceFolderRef.current, picked.rootPath)) {
+                    notify('Source and target folders must be different. Choose another target folder.');
+                    return;
+                }
+
                 setTargetFolderState(picked.rootPath);
                 setTargetDirectory(picked);
                 persistRuntimeFolders(sourceFolderRef.current, picked.rootPath);
@@ -295,6 +356,9 @@ export function useOrganizerApp() {
         setActiveScreen(SCREEN.PROGRESS);
         setSyncProgress(buildPreparingDraft(artifacts));
 
+        // Let React commit the screen transition before starting heavy file-system work.
+        await waitForNextFrame();
+
         try {
             const loadedSourceFiles = await ensureSourceFilesLoaded();
             if (loadedSourceFiles.length === 0) {
@@ -313,6 +377,34 @@ export function useOrganizerApp() {
 
             let plannedArtifacts = artifacts;
             try {
+                if (isRemovableStorageRootPath(sourceFolderRef.current)) {
+                    setSyncProgress((previous) =>
+                        previous
+                            ? {
+                                ...previous,
+                                isRunning: false,
+                                isPreparing: false,
+                            }
+                            : previous
+                    );
+                    notify('Source folder cannot be on removable storage. Choose internal phone storage.');
+                    return;
+                }
+
+                if (areSameFolderPaths(sourceFolderRef.current, targetFolderRef.current)) {
+                    setSyncProgress((previous) =>
+                        previous
+                            ? {
+                                ...previous,
+                                isRunning: false,
+                                isPreparing: false,
+                            }
+                            : previous
+                    );
+                    notify('Source and target folders must be different before sync.');
+                    return;
+                }
+
                 const planned = scanAndPlan(runtimeConfig, loadedSourceFiles, artifacts);
                 persist(planned);
                 plannedArtifacts = planned;

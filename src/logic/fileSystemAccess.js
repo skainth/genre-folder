@@ -80,6 +80,47 @@ function directoryDisplayPath(directory) {
     return raw.replace(/\/+$/, '');
 }
 
+function parseTreeDocumentIdFromUri(uri) {
+    const raw = String(uri || '');
+    const marker = '/tree/';
+    const treeIndex = raw.indexOf(marker);
+    if (treeIndex < 0) {
+        return '';
+    }
+
+    const afterTree = raw.slice(treeIndex + marker.length);
+    const nextSlash = afterTree.indexOf('/');
+    const encodedId = nextSlash >= 0 ? afterTree.slice(0, nextSlash) : afterTree;
+
+    try {
+        return decodeURIComponent(encodedId);
+    } catch (_error) {
+        return encodedId;
+    }
+}
+
+export function isRemovableStorageRootPath(path) {
+    const raw = String(path || '').trim();
+    if (!raw) {
+        return false;
+    }
+
+    if (raw.startsWith('content://')) {
+        const docId = parseTreeDocumentIdFromUri(raw).toLowerCase();
+        if (!docId) {
+            return false;
+        }
+        return !docId.startsWith('primary:');
+    }
+
+    const normalized = raw.replace(/\\/g, '/').toLowerCase();
+    if (normalized.startsWith('/storage/emulated/')) {
+        return false;
+    }
+
+    return /^\/storage\/[a-f0-9]{4}-[a-f0-9]{4}(\/|$)/i.test(normalized);
+}
+
 function createDirectoryFromUri(uri) {
     const normalizedUri = String(uri || '').trim();
     if (!normalizedUri) {
