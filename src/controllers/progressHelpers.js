@@ -47,6 +47,7 @@ export function buildPreparingDraft(currentArtifacts) {
         runId: `sync-${Date.now()}`,
         startedAt: new Date().toISOString(),
         logFileName: makeLogFileName(),
+        preparingLabel: 'Reading source files...',
         totalOperations: 0,
         completedOperations: 0,
         percentComplete: 0,

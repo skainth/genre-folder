@@ -70,7 +70,7 @@ export default function SyncProgressScreen(props) {
     const changedCount = run.copyItems.length;
     const deletedCount = run.deleteItems.length;
     const subtitle = run.isPreparing
-        ? 'Preparing file plan and loading changed/deleted/error files'
+        ? 'Preparing file plan and reading source files'
         : run.isRunning
             ? `Processing ${run.totalOperations} operations`
             : `Dry run complete. ${run.totalOperations} operations ready`;
@@ -86,6 +86,7 @@ export default function SyncProgressScreen(props) {
         : run.isRunning
             ? 'Waiting for next operation...'
             : 'Not running';
+    const preparingText = run.isPreparing ? run.preparingLabel || 'Reading source files...' : '';
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -124,6 +125,7 @@ export default function SyncProgressScreen(props) {
                 </View>
                 <View style={styles.listBoxCleanup}>
                     <Text style={styles.pathLabelMuted}>{currentOperationText}</Text>
+                    {preparingText ? <Text style={styles.pathLineMuted}>{preparingText}</Text> : null}
                     {currentOperation?.sourcePath ? <Text style={styles.pathLineMuted}>Source: {currentOperation.sourcePath}</Text> : null}
                     {currentOperation?.targetPath ? <Text style={styles.pathLineMuted}>Target: {currentOperation.targetPath}</Text> : null}
                 </View>

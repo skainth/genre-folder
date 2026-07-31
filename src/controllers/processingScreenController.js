@@ -49,6 +49,7 @@ export function createProcessingScreenController(deps) {
         setSyncProgress(buildPreparingDraft(artifacts));
 
         await waitForNextFrame();
+        await waitForNextFrame();
 
         try {
             const loadedSourceFiles = await ensureSourceFilesLoaded();
