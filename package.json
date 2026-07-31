@@ -14,11 +14,7 @@
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
-    "web": "expo start --web",
-    "build:android:preview": "eas build --platform android --profile preview",
-    "build:android:preview:local": "eas build --platform android --profile preview --local",
-    "upload:browserstack": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/upload-browserstack.ps1",
-    "run:firebase:testlab": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-firebase-testlab.ps1"
+    "web": "expo start --web"
   },
   "private": true
 }
