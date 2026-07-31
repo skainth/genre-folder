@@ -37,11 +37,7 @@ export default function OrganizerScreen(props) {
     const storageStatusText = liveApplyReady ? 'READY' : 'DENIED';
 
     function handleStart() {
-        if (hasPendingChanges) {
-            onApply();
-            return;
-        }
-        onPreview();
+        onApply();
     }
 
     return (

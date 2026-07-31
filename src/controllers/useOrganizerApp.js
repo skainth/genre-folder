@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { applyPlanWithProgress, scanAndPlan } from '../logic/organizer';
 import { defaultConfig } from '../logic/defaultConfig';
 import { SCREEN, SOURCE_MODE } from '../logic/appConstants';
@@ -30,6 +30,9 @@ export function useOrganizerApp() {
 
     const [sourceFolder, setSourceFolder] = useState(initialRuntimeConfig.sourceFolder);
     const [targetFolder, setTargetFolder] = useState(initialRuntimeConfig.targetFolder);
+    const sourceFolderRef = useRef(String(initialRuntimeConfig.sourceFolder || '').trim());
+    const targetFolderRef = useRef(String(initialRuntimeConfig.targetFolder || '').trim());
+
     const [sourceFiles, setSourceFiles] = useState([]);
     const [sourceMode, setSourceMode] = useState(SOURCE_MODE.FILESYSTEM);
     const [sourceDirectory, setSourceDirectory] = useState(null);
@@ -60,15 +63,34 @@ export function useOrganizerApp() {
     const pendingUpdateCount = Object.keys(artifacts.toupdate || {}).length;
     const liveApplyReady = sourceMode === SOURCE_MODE.FILESYSTEM && Boolean(targetDirectory?.handle);
 
+    function persistRuntimeFolders(nextSourceFolder, nextTargetFolder) {
+        saveRuntimeConfig({
+            sourceFolder: String(nextSourceFolder || '').trim(),
+            targetFolder: String(nextTargetFolder || '').trim(),
+        });
+    }
+
+    function setSourceFolderState(nextSourceFolder) {
+        const normalized = String(nextSourceFolder || '').trim();
+        sourceFolderRef.current = normalized;
+        setSourceFolder(normalized);
+    }
+
+    function setTargetFolderState(nextTargetFolder) {
+        const normalized = String(nextTargetFolder || '').trim();
+        targetFolderRef.current = normalized;
+        setTargetFolder(normalized);
+    }
+
     useEffect(() => {
         if (initialRuntimeConfig.sourceFolder) {
             try {
                 const restoredSource = buildDirectoryHandleFromUri(initialRuntimeConfig.sourceFolder);
                 setSourceDirectory(restoredSource);
-                setSourceFolder(restoredSource.rootPath);
+                setSourceFolderState(restoredSource.rootPath);
                 setSourceMode(SOURCE_MODE.FILESYSTEM);
             } catch (_error) {
-                setSourceFolder('');
+                setSourceFolderState('');
             }
         }
 
@@ -76,11 +98,13 @@ export function useOrganizerApp() {
             try {
                 const restoredTarget = buildDirectoryHandleFromUri(initialRuntimeConfig.targetFolder);
                 setTargetDirectory(restoredTarget);
-                setTargetFolder(restoredTarget.rootPath);
+                setTargetFolderState(restoredTarget.rootPath);
             } catch (_error) {
-                setTargetFolder('');
+                setTargetFolderState('');
             }
         }
+
+        persistRuntimeFolders(sourceFolderRef.current, targetFolderRef.current);
     }, [initialRuntimeConfig.sourceFolder, initialRuntimeConfig.targetFolder]);
 
     function persist(nextArtifacts) {
@@ -89,19 +113,12 @@ export function useOrganizerApp() {
         setLastRunText(formatLastRunLabel(nextArtifacts.log));
     }
 
-    function persistRuntimeFolders(nextSourceFolder, nextTargetFolder) {
-        saveRuntimeConfig({
-            sourceFolder: String(nextSourceFolder || '').trim(),
-            targetFolder: String(nextTargetFolder || '').trim(),
-        });
-    }
-
     async function ensureSourceFilesLoaded() {
         if (sourceFiles.length > 0) {
             return sourceFiles;
         }
 
-        const sourceRoot = String(sourceFolder || '').trim();
+        const sourceRoot = String(sourceFolderRef.current || '').trim();
         if (!sourceRoot) {
             return [];
         }
@@ -109,7 +126,7 @@ export function useOrganizerApp() {
         try {
             const loaded = await loadDirectoryTreeFromUri(sourceRoot);
             setSourceDirectory({ handle: loaded.handle, rootPath: loaded.rootPath });
-            setSourceFolder(loaded.rootPath);
+            setSourceFolderState(loaded.rootPath);
             setSourceFiles(loaded.files);
             setSourceMode(SOURCE_MODE.FILESYSTEM);
             return loaded.files;
@@ -193,11 +210,11 @@ export function useOrganizerApp() {
             if (supportsDirectoryPicker()) {
                 try {
                     const picked = await pickDirectoryTree();
-                    setSourceFolder(picked.rootPath);
+                    setSourceFolderState(picked.rootPath);
                     setSourceFiles(picked.files);
                     setSourceDirectory({ handle: picked.handle, rootPath: picked.rootPath });
                     setSourceMode(SOURCE_MODE.FILESYSTEM);
-                    persistRuntimeFolders(picked.rootPath, targetFolder);
+                    persistRuntimeFolders(picked.rootPath, targetFolderRef.current);
                     notify(`Selected ${picked.files.length} file(s) from ${picked.rootPath}`);
                 } catch (error) {
                     if (String(error?.name || '') !== 'AbortError') {
@@ -214,9 +231,9 @@ export function useOrganizerApp() {
         if (supportsDirectoryPicker()) {
             try {
                 const picked = await pickDirectoryHandle('readwrite');
-                setTargetFolder(picked.rootPath);
+                setTargetFolderState(picked.rootPath);
                 setTargetDirectory(picked);
-                persistRuntimeFolders(sourceFolder, picked.rootPath);
+                persistRuntimeFolders(sourceFolderRef.current, picked.rootPath);
                 notify(`Selected target folder ${picked.rootPath}`);
             } catch (error) {
                 if (String(error?.name || '') !== 'AbortError') {
