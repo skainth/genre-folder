@@ -26,6 +26,19 @@ export function createProcessingScreenController(deps) {
         notify,
     } = deps;
 
+    function closePreparingStateWithMessage(message) {
+        setSyncProgress((previous) =>
+            previous
+                ? {
+                    ...previous,
+                    isRunning: false,
+                    isPreparing: false,
+                }
+                : previous
+        );
+        notify(message);
+    }
+
     async function handleApply() {
         if (isStartProcessing) {
             return;
@@ -40,46 +53,19 @@ export function createProcessingScreenController(deps) {
         try {
             const loadedSourceFiles = await ensureSourceFilesLoaded();
             if (loadedSourceFiles.length === 0) {
-                setSyncProgress((previous) =>
-                    previous
-                        ? {
-                            ...previous,
-                            isRunning: false,
-                            isPreparing: false,
-                        }
-                        : previous
-                );
-                notify('No source files loaded. Pick a source folder using the folder picker.');
+                closePreparingStateWithMessage('No source files loaded. Pick a source folder using the folder picker.');
                 return;
             }
 
             let plannedArtifacts = artifacts;
             try {
                 if (isRemovableStorageRootPath(sourceFolderRef.current)) {
-                    setSyncProgress((previous) =>
-                        previous
-                            ? {
-                                ...previous,
-                                isRunning: false,
-                                isPreparing: false,
-                            }
-                            : previous
-                    );
-                    notify('Source folder cannot be on removable storage. Choose internal phone storage.');
+                    closePreparingStateWithMessage('Source folder cannot be on removable storage. Choose internal phone storage.');
                     return;
                 }
 
                 if (areSameFolderPaths(sourceFolderRef.current, targetFolderRef.current)) {
-                    setSyncProgress((previous) =>
-                        previous
-                            ? {
-                                ...previous,
-                                isRunning: false,
-                                isPreparing: false,
-                            }
-                            : previous
-                    );
-                    notify('Source and target folders must be different before sync.');
+                    closePreparingStateWithMessage('Source and target folders must be different before sync.');
                     return;
                 }
 
@@ -90,43 +76,16 @@ export function createProcessingScreenController(deps) {
                 const freshUpdates = Object.keys(planned.toupdate || {}).length;
                 const freshDeletes = Object.keys(planned.todelete || {}).length;
                 if (freshUpdates === 0 && freshDeletes === 0) {
-                    setSyncProgress((previous) =>
-                        previous
-                            ? {
-                                ...previous,
-                                isRunning: false,
-                                isPreparing: false,
-                            }
-                            : previous
-                    );
-                    notify('No pending updates to apply. Nothing changed.');
+                    closePreparingStateWithMessage('No pending updates to apply. Nothing changed.');
                     return;
                 }
             } catch (error) {
-                setSyncProgress((previous) =>
-                    previous
-                        ? {
-                            ...previous,
-                            isRunning: false,
-                            isPreparing: false,
-                        }
-                        : previous
-                );
-                notify(String(error?.message || error));
+                closePreparingStateWithMessage(String(error?.message || error));
                 return;
             }
 
             if (sourceMode !== SOURCE_MODE.FILESYSTEM || !targetDirectory?.handle) {
-                setSyncProgress((previous) =>
-                    previous
-                        ? {
-                            ...previous,
-                            isRunning: false,
-                            isPreparing: false,
-                        }
-                        : previous
-                );
-                notify(
+                closePreparingStateWithMessage(
                     'Live file execution requires picker-selected source and destination folders. Select both folders with the picker before starting sync.'
                 );
                 return;
@@ -139,21 +98,64 @@ export function createProcessingScreenController(deps) {
             };
             const draft = buildSyncDraft(plannedAtStart);
             setSyncProgress(draft);
+            notify('Dry run ready. Review changed/deleted/error files, then tap Sync Now to apply changes.');
+        } finally {
+            setIsStartProcessing(false);
+        }
+    }
 
-            try {
-                await runApplyWithProgress(plannedAtStart, loadedSourceFiles);
-            } catch (error) {
-                setSyncProgress((previous) =>
-                    previous
-                        ? {
-                            ...previous,
-                            isRunning: false,
-                            isPreparing: false,
-                        }
-                        : previous
-                );
-                notify(String(error?.message || error));
+    async function handleSyncNow() {
+        if (isStartProcessing) {
+            return;
+        }
+
+        const currentArtifacts = artifacts;
+        const pendingUpdates = Object.keys(currentArtifacts.toupdate || {}).length;
+        const pendingDeletes = Object.keys(currentArtifacts.todelete || {}).length;
+        if (pendingUpdates === 0 && pendingDeletes === 0) {
+            notify('No pending operations to sync. Run Start to create a dry-run plan first.');
+            return;
+        }
+
+        if (sourceMode !== SOURCE_MODE.FILESYSTEM || !targetDirectory?.handle) {
+            notify(
+                'Live file execution requires picker-selected source and destination folders. Select both folders with the picker before syncing.'
+            );
+            return;
+        }
+
+        setIsStartProcessing(true);
+        setSyncProgress((previous) =>
+            previous
+                ? {
+                    ...previous,
+                    isRunning: true,
+                    isPreparing: false,
+                    isDryRun: false,
+                    currentOperation: null,
+                    completedOperations: 0,
+                    percentComplete: 0,
+                    etaSeconds: previous.totalOperations,
+                }
+                : previous
+        );
+
+        try {
+            const loadedSourceFiles = await ensureSourceFilesLoaded();
+            if (loadedSourceFiles.length === 0) {
+                closePreparingStateWithMessage('No source files loaded. Pick a source folder using the folder picker.');
+                return;
             }
+
+            const plannedAtStart = {
+                ...currentArtifacts,
+                toupdate: { ...(currentArtifacts.toupdate || {}) },
+                todelete: { ...(currentArtifacts.todelete || {}) },
+            };
+
+            await runApplyWithProgress(plannedAtStart, loadedSourceFiles);
+        } catch (error) {
+            closePreparingStateWithMessage(String(error?.message || error));
         } finally {
             setIsStartProcessing(false);
         }
@@ -184,6 +186,7 @@ export function createProcessingScreenController(deps) {
 
     return {
         handleApply,
+        handleSyncNow,
         handleBackToMain,
         handleViewLiveLog,
     };

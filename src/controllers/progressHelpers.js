@@ -53,9 +53,11 @@ export function buildPreparingDraft(currentArtifacts) {
         etaSeconds: 0,
         isRunning: true,
         isPreparing: true,
+        isDryRun: true,
         copyItems: [],
         deleteItems: [],
         errorItems: parseErrorItems,
+        currentOperation: null,
         liveLogLines: [],
     };
 }
@@ -121,11 +123,13 @@ export function buildSyncDraft(currentArtifacts) {
         completedOperations: 0,
         percentComplete: 0,
         etaSeconds: totalOperations,
-        isRunning: true,
+        isRunning: false,
         isPreparing: false,
+        isDryRun: true,
         copyItems,
         deleteItems,
         errorItems: parseErrorItems,
+        currentOperation: null,
         liveLogLines: [],
     };
 }
@@ -204,11 +208,20 @@ function updateDeleteItemFromEvent(item, event) {
 
 export function updateRunFromProgressEvent(previous, event) {
     const next = updateProgressMeta(previous, event);
+    const operationDetails = {
+        type: event.operation.type,
+        fileName: fileNameFromPath(event.operation.sourcePath),
+        sourcePath: event.operation.sourcePath,
+        targetPath: event.operation.targetPath,
+    };
+
+    const currentOperation = event.phase === 'start' ? operationDetails : null;
 
     if (event.operation.type === 'copy') {
         return {
             ...next,
             copyItems: next.copyItems.map((item) => updateCopyItemFromEvent(item, event)),
+            currentOperation,
             liveLogLines: [...next.liveLogLines, progressLogLine(event)],
         };
     }
@@ -216,6 +229,7 @@ export function updateRunFromProgressEvent(previous, event) {
     return {
         ...next,
         deleteItems: next.deleteItems.map((item) => updateDeleteItemFromEvent(item, event)),
+        currentOperation,
         liveLogLines: [...next.liveLogLines, progressLogLine(event)],
     };
 }

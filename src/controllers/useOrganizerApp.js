@@ -313,6 +313,7 @@ export function useOrganizerApp() {
         handleScanOnly: homeController.handleScanOnly,
         handleCancelPlan: homeController.handleCancelPlan,
         handleApply: processingController.handleApply,
+        handleSyncNow: processingController.handleSyncNow,
         handleBackToMain: processingController.handleBackToMain,
         handleViewLiveLog: processingController.handleViewLiveLog,
     };

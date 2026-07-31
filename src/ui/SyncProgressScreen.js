@@ -43,6 +43,7 @@ function toErrorDetails(item) {
 export default function SyncProgressScreen(props) {
     const {
         run,
+        onSyncNow,
         onViewLiveLog,
         onBackToMain,
     } = props;
@@ -61,8 +62,16 @@ export default function SyncProgressScreen(props) {
     const deletedCount = run.deleteItems.length;
     const subtitle = run.isPreparing
         ? 'Preparing file plan and loading changed/deleted/error files'
-        : `Processing ${run.totalOperations} operations`;
+        : run.isRunning
+            ? `Processing ${run.totalOperations} operations`
+            : `Dry run complete. ${run.totalOperations} operations ready`;
     const bottomLabel = run.isRunning ? 'Done (Processing...)' : 'Back to Organizer';
+    const currentOperation = run.currentOperation;
+    const currentOperationText = currentOperation
+        ? `${String(currentOperation.type || '').toUpperCase()} ${currentOperation.fileName || ''}`
+        : run.isRunning
+            ? 'Waiting for next operation...'
+            : 'Not running';
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -83,6 +92,18 @@ export default function SyncProgressScreen(props) {
                 <View style={styles.progressMetaRow}>
                     <Text style={styles.metaLeft}>{run.completedOperations} of {run.totalOperations} completed</Text>
                     <Text style={styles.metaRight}>{errorItems.length} Errors detected</Text>
+                </View>
+
+                <View style={[styles.sectionHeader, { marginTop: 12 }]}>
+                    <View style={styles.sectionTitleWrap}>
+                        <Feather name="activity" size={14} color="#5C63F0" />
+                        <Text style={styles.sectionTitle}>CURRENTLY PROCESSING</Text>
+                    </View>
+                </View>
+                <View style={styles.listBoxCleanup}>
+                    <Text style={styles.pathLabelMuted}>{currentOperationText}</Text>
+                    {currentOperation?.sourcePath ? <Text style={styles.pathLineMuted}>Source: {currentOperation.sourcePath}</Text> : null}
+                    {currentOperation?.targetPath ? <Text style={styles.pathLineMuted}>Target: {currentOperation.targetPath}</Text> : null}
                 </View>
 
                 {run.isPreparing && (
@@ -170,6 +191,15 @@ export default function SyncProgressScreen(props) {
                 <TouchableOpacity style={styles.logButton} activeOpacity={0.85} onPress={onViewLiveLog}>
                     <Feather name="file-text" size={16} color="#5E5FF2" />
                     <Text style={styles.logButtonText}>View Sync Log ({errorItems.length} Errors)</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={[styles.bottomButton, (run.isRunning || run.isPreparing || run.totalOperations === 0) && styles.bottomButtonDisabled]}
+                    activeOpacity={0.85}
+                    onPress={onSyncNow}
+                    disabled={run.isRunning || run.isPreparing || run.totalOperations === 0}
+                >
+                    <Text style={styles.bottomButtonText}>Sync Now</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity

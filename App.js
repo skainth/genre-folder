@@ -9,6 +9,7 @@ export default function App() {
     return (
       <SyncProgressScreen
         run={app.syncProgress}
+        onSyncNow={app.handleSyncNow}
         onViewLiveLog={app.handleViewLiveLog}
         onBackToMain={app.handleBackToMain}
       />
