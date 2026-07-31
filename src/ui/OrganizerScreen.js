@@ -24,6 +24,7 @@ export default function OrganizerScreen(props) {
         filesWithError,
         pendingDeleteCount,
         pendingUpdateCount,
+        isStartProcessing,
         lastRunText,
         onSelectFolder,
         onPreview,
@@ -32,7 +33,7 @@ export default function OrganizerScreen(props) {
 
     const hasReadyFolders = Boolean(String(sourceFolder || '').trim()) && Boolean(String(targetFolder || '').trim());
     const hasPendingChanges = pendingUpdateCount + pendingDeleteCount > 0;
-    const startLabel = hasPendingChanges ? 'START SYNC' : 'START';
+    const startLabel = isStartProcessing ? 'PROCESSING...' : hasPendingChanges ? 'START SYNC' : 'START';
     const lastExamined = String(lastRunText || '').replace(/^Last run:\s*/i, '');
     const storageStatusText = liveApplyReady ? 'READY' : 'DENIED';
 
@@ -137,12 +138,12 @@ export default function OrganizerScreen(props) {
                 </View>
 
                 <TouchableOpacity
-                    style={[styles.startBtn, !hasReadyFolders && styles.startBtnDisabled]}
+                    style={[styles.startBtn, (!hasReadyFolders || isStartProcessing) && styles.startBtnDisabled]}
                     activeOpacity={0.9}
                     onPress={handleStart}
-                    disabled={!hasReadyFolders}
+                    disabled={!hasReadyFolders || isStartProcessing}
                 >
-                    <Text style={[styles.startBtnText, !hasReadyFolders && styles.startBtnTextDisabled]}>{startLabel}</Text>
+                    <Text style={[styles.startBtnText, (!hasReadyFolders || isStartProcessing) && styles.startBtnTextDisabled]}>{startLabel}</Text>
                 </TouchableOpacity>
 
                 <Text style={styles.sourceModeText}>Source mode: {sourceMode}</Text>

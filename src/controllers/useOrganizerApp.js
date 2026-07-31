@@ -42,6 +42,7 @@ export function useOrganizerApp() {
     const [activeScreen, setActiveScreen] = useState(SCREEN.MAIN);
     const [syncProgress, setSyncProgress] = useState(null);
     const [activityLogs, setActivityLogs] = useState([]);
+    const [isStartProcessing, setIsStartProcessing] = useState(false);
 
     const runtimeConfig = useMemo(
         () => ({
@@ -285,58 +286,67 @@ export function useOrganizerApp() {
     }
 
     async function handleApply() {
-        const loadedSourceFiles = await ensureSourceFilesLoaded();
-        if (loadedSourceFiles.length === 0) {
-            notify('No source files loaded. Pick a source folder using the folder picker.');
+        if (isStartProcessing) {
             return;
         }
 
-        if (pendingUpdateCount === 0 && pendingDeleteCount === 0) {
-            try {
-                const planned = scanAndPlan(runtimeConfig, loadedSourceFiles, artifacts);
-                persist(planned);
-
-                const freshUpdates = Object.keys(planned.toupdate || {}).length;
-                const freshDeletes = Object.keys(planned.todelete || {}).length;
-                if (freshUpdates === 0 && freshDeletes === 0) {
-                    notify('No pending updates to apply. Nothing changed.');
-                    return;
-                }
-            } catch (error) {
-                notify(String(error?.message || error));
+        setIsStartProcessing(true);
+        try {
+            const loadedSourceFiles = await ensureSourceFilesLoaded();
+            if (loadedSourceFiles.length === 0) {
+                notify('No source files loaded. Pick a source folder using the folder picker.');
                 return;
             }
-        }
 
-        if (sourceMode !== SOURCE_MODE.FILESYSTEM || !targetDirectory?.handle) {
-            notify(
-                'Live file execution requires picker-selected source and destination folders. Select both folders with the picker before starting sync.'
-            );
-            return;
-        }
+            if (pendingUpdateCount === 0 && pendingDeleteCount === 0) {
+                try {
+                    const planned = scanAndPlan(runtimeConfig, loadedSourceFiles, artifacts);
+                    persist(planned);
 
-        const currentArtifacts = loadArtifacts();
-        const plannedAtStart = {
-            ...currentArtifacts,
-            toupdate: { ...(currentArtifacts.toupdate || {}) },
-            todelete: { ...(currentArtifacts.todelete || {}) },
-        };
-        const draft = buildSyncDraft(plannedAtStart);
-        setSyncProgress(draft);
-        setActiveScreen(SCREEN.PROGRESS);
-
-        try {
-            await runApplyWithProgress(plannedAtStart, loadedSourceFiles);
-        } catch (error) {
-            setSyncProgress((previous) =>
-                previous
-                    ? {
-                        ...previous,
-                        isRunning: false,
+                    const freshUpdates = Object.keys(planned.toupdate || {}).length;
+                    const freshDeletes = Object.keys(planned.todelete || {}).length;
+                    if (freshUpdates === 0 && freshDeletes === 0) {
+                        notify('No pending updates to apply. Nothing changed.');
+                        return;
                     }
-                    : previous
-            );
-            notify(String(error?.message || error));
+                } catch (error) {
+                    notify(String(error?.message || error));
+                    return;
+                }
+            }
+
+            if (sourceMode !== SOURCE_MODE.FILESYSTEM || !targetDirectory?.handle) {
+                notify(
+                    'Live file execution requires picker-selected source and destination folders. Select both folders with the picker before starting sync.'
+                );
+                return;
+            }
+
+            const currentArtifacts = loadArtifacts();
+            const plannedAtStart = {
+                ...currentArtifacts,
+                toupdate: { ...(currentArtifacts.toupdate || {}) },
+                todelete: { ...(currentArtifacts.todelete || {}) },
+            };
+            const draft = buildSyncDraft(plannedAtStart);
+            setSyncProgress(draft);
+            setActiveScreen(SCREEN.PROGRESS);
+
+            try {
+                await runApplyWithProgress(plannedAtStart, loadedSourceFiles);
+            } catch (error) {
+                setSyncProgress((previous) =>
+                    previous
+                        ? {
+                            ...previous,
+                            isRunning: false,
+                        }
+                        : previous
+                );
+                notify(String(error?.message || error));
+            }
+        } finally {
+            setIsStartProcessing(false);
         }
     }
 
@@ -367,6 +377,7 @@ export function useOrganizerApp() {
         activeScreen,
         syncProgress,
         activityLogs,
+        isStartProcessing,
         sourceFolder,
         targetFolder,
         liveApplyReady,

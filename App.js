@@ -24,6 +24,7 @@ export default function App() {
       filesWithError={app.filesWithError}
       pendingDeleteCount={app.pendingDeleteCount}
       pendingUpdateCount={app.pendingUpdateCount}
+      isStartProcessing={app.isStartProcessing}
       lastRunText={app.lastRunText}
       onSelectFolder={app.handleFolderSelection}
       onPreview={app.handlePreview}
