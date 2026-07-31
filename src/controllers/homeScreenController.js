@@ -4,13 +4,13 @@ export function createHomeScreenController(deps) {
     const {
         supportsDirectoryPicker,
         pickDirectoryHandle,
-        loadDirectoryTreeFromUri,
         isRemovableStorageRootPath,
         areSameFolderPaths,
         notify,
         sourceFolderRef,
         targetFolderRef,
         artifacts,
+        sourceFiles,
         runtimeConfig,
         setSourceFolderState,
         setTargetFolderState,
@@ -50,18 +50,7 @@ export function createHomeScreenController(deps) {
                     setSourceDirectory(picked);
                     setSourceMode(SOURCE_MODE.FILESYSTEM);
                     persistRuntimeFolders(picked.rootPath, targetFolderRef.current);
-
-                    try {
-                        const loaded = await loadDirectoryTreeFromUri(picked.rootPath);
-                        setSourceFolderState(loaded.rootPath);
-                        setSourceFiles(loaded.files);
-                        setSourceDirectory({ handle: loaded.handle, rootPath: loaded.rootPath });
-                        notify(`Selected ${loaded.files.length} file(s) from ${loaded.rootPath}`);
-                    } catch (_loadError) {
-                        notify(
-                            `Source folder selected: ${picked.rootPath}. Could not read files yet; try selecting it again if needed.`
-                        );
-                    }
+                    notify(`Selected source folder ${picked.rootPath}. Files will be read when Start is pressed.`);
                 } catch (error) {
                     if (String(error?.name || '') !== 'AbortError') {
                         notify(String(error?.message || error));
@@ -99,14 +88,23 @@ export function createHomeScreenController(deps) {
     }
 
     async function handlePreview() {
-        const loadedSourceFiles = await ensureSourceFilesLoaded();
-        if (loadedSourceFiles.length === 0) {
-            notify('No source files loaded. Pick a source folder using the folder picker.');
+        if (!sourceFolderRef.current) {
+            notify('No source folder selected. Pick a source folder first.');
+            return;
+        }
+
+        if (!targetFolderRef.current) {
+            notify('No target folder selected. Pick a target folder first.');
+            return;
+        }
+
+        if ((sourceFiles || []).length === 0) {
+            notify('Source files are loaded only when Start is pressed. Press Start to read and process files.');
             return;
         }
 
         try {
-            const planned = scanAndPlan(runtimeConfig, loadedSourceFiles, artifacts);
+            const planned = scanAndPlan(runtimeConfig, sourceFiles, artifacts);
             persist(planned);
 
             const toUpdate = Object.keys(planned.toupdate || {}).length;
