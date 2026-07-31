@@ -7,14 +7,20 @@ const styles = StyleSheet.create({
     },
     page: {
         flex: 1,
+    },
+    pageContent: {
         paddingHorizontal: 16,
         paddingTop: 10,
-        paddingBottom: 16,
+        paddingBottom: 28,
     },
     topRow: {
         flexDirection: 'row',
         alignItems: 'flex-end',
         justifyContent: 'space-between',
+        gap: 12,
+    },
+    topRowLeft: {
+        flex: 1,
     },
     title: {
         color: '#162B4C',
@@ -57,6 +63,12 @@ const styles = StyleSheet.create({
         color: '#DF3F3F',
         fontSize: 12,
         fontWeight: '700',
+    },
+    etaText: {
+        color: '#51698F',
+        fontSize: 12,
+        fontWeight: '600',
+        marginBottom: 6,
     },
     sectionHeaderError: {
         marginTop: 10,

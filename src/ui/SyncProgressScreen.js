@@ -40,6 +40,15 @@ function toErrorDetails(item) {
     return 'Operation failed for target location.';
 }
 
+function formatEta(seconds) {
+    const total = Math.max(0, Math.round(Number(seconds) || 0));
+    if (total < 60) {
+        return `${total}s`;
+    }
+    const minutes = Math.floor(total / 60);
+    return `${minutes}m ${total % 60}s`;
+}
+
 export default function SyncProgressScreen(props) {
     const {
         run,
@@ -65,6 +74,11 @@ export default function SyncProgressScreen(props) {
         : run.isRunning
             ? `Processing ${run.totalOperations} operations`
             : `Dry run complete. ${run.totalOperations} operations ready`;
+    const title = run.isPreparing
+        ? 'Preparing Sync...'
+        : run.isRunning
+            ? 'Syncing Files...'
+            : 'Sync Plan Ready';
     const bottomLabel = run.isRunning ? 'Done (Processing...)' : 'Back to Organizer';
     const currentOperation = run.currentOperation;
     const currentOperationText = currentOperation
@@ -76,10 +90,14 @@ export default function SyncProgressScreen(props) {
     return (
         <SafeAreaView style={styles.safeArea}>
             <StatusBar style="dark" />
-            <View style={styles.page}>
+            <ScrollView
+                style={styles.page}
+                contentContainerStyle={styles.pageContent}
+                showsVerticalScrollIndicator={false}
+            >
                 <View style={styles.topRow}>
-                    <View>
-                        <Text style={styles.title}>Syncing Files...</Text>
+                    <View style={styles.topRowLeft}>
+                        <Text style={styles.title}>{title}</Text>
                         <Text style={styles.subtitle}>{subtitle}</Text>
                     </View>
                     <Text style={styles.percent}>{run.percentComplete}%</Text>
@@ -93,6 +111,10 @@ export default function SyncProgressScreen(props) {
                     <Text style={styles.metaLeft}>{run.completedOperations} of {run.totalOperations} completed</Text>
                     <Text style={styles.metaRight}>{errorItems.length} Errors detected</Text>
                 </View>
+
+                {run.isRunning && !run.isPreparing && (
+                    <Text style={styles.etaText}>Estimated time remaining: {formatEta(run.etaSeconds)}</Text>
+                )}
 
                 <View style={[styles.sectionHeader, { marginTop: 12 }]}>
                     <View style={styles.sectionTitleWrap}>
@@ -147,7 +169,14 @@ export default function SyncProgressScreen(props) {
                         {run.copyItems.map((item) => (
                             <View key={item.id} style={[styles.fileCard, item.multiTarget && styles.fileCardMulti]}>
                                 <View style={styles.fileTitleRow}>
-                                    <Text style={styles.fileName}>{item.fileName}</Text>
+                                    <View style={styles.titleLeft}>
+                                        <Text style={styles.fileName}>{item.fileName}</Text>
+                                        {item.multiTarget && (
+                                            <View style={styles.multiTargetPill}>
+                                                <Text style={styles.multiTargetText}>{item.totalTargets} TARGETS</Text>
+                                            </View>
+                                        )}
+                                    </View>
                                     <View style={[styles.statusPill, { backgroundColor: statusColor(item.status) }]}>
                                         <Text style={styles.statusText}>{statusLabel(item.status)}</Text>
                                     </View>
@@ -212,7 +241,7 @@ export default function SyncProgressScreen(props) {
                 </TouchableOpacity>
 
                 <Text style={styles.logRefText}>Log: /logs/sync/{run.logFileName}</Text>
-            </View>
+            </ScrollView>
         </SafeAreaView>
     );
 }

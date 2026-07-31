@@ -103,6 +103,49 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '600',
     },
+    pendingDot: {
+        backgroundColor: '#E0A32E',
+    },
+    pendingText: {
+        color: '#B4801C',
+    },
+    summaryCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#E0E6F2',
+        padding: 16,
+    },
+    summaryRow: {
+        marginTop: 12,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    summaryItem: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    summaryValue: {
+        color: '#1B2B4A',
+        fontSize: 24,
+        fontWeight: '800',
+    },
+    summaryValueCopy: {
+        color: '#4E4FF0',
+    },
+    summaryValueDelete: {
+        color: '#E0703C',
+    },
+    summaryValueError: {
+        color: '#CE4141',
+    },
+    summaryLabel: {
+        marginTop: 2,
+        color: '#7A8CA8',
+        fontSize: 10,
+        letterSpacing: 1,
+        fontWeight: '700',
+    },
     changeBtn: {
         backgroundColor: '#F2F5FD',
         borderWidth: 1,

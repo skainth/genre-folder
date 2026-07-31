@@ -24,6 +24,7 @@ export default function OrganizerScreen(props) {
         filesWithError,
         pendingDeleteCount,
         pendingUpdateCount,
+        totalFilesCount,
         isStartProcessing,
         lastRunText,
         onSelectFolder,
@@ -31,7 +32,8 @@ export default function OrganizerScreen(props) {
         onApply,
     } = props;
 
-    const hasReadyFolders = Boolean(String(sourceFolder || '').trim()) && Boolean(String(targetFolder || '').trim());
+    const hasSourceFolder = Boolean(String(sourceFolder || '').trim());
+    const hasReadyFolders = hasSourceFolder && Boolean(String(targetFolder || '').trim());
     const hasPendingChanges = pendingUpdateCount + pendingDeleteCount > 0;
     const startLabel = isStartProcessing ? 'PROCESSING...' : hasPendingChanges ? 'START SYNC' : 'START';
     const lastExamined = String(lastRunText || '').replace(/^Last run:\s*/i, '');
@@ -62,8 +64,10 @@ export default function OrganizerScreen(props) {
                             <View>
                                 <Text style={styles.sectionLabel}>SOURCE FOLDER</Text>
                                 <View style={styles.statusRow}>
-                                    <View style={styles.readyDot} />
-                                    <Text style={styles.readyText}>Ready</Text>
+                                    <View style={[styles.readyDot, !hasSourceFolder && styles.pendingDot]} />
+                                    <Text style={[styles.readyText, !hasSourceFolder && styles.pendingText]}>
+                                        {hasSourceFolder ? 'Ready' : 'Not selected'}
+                                    </Text>
                                 </View>
                             </View>
                         </View>
@@ -102,6 +106,28 @@ export default function OrganizerScreen(props) {
                     <TouchableOpacity style={styles.selectBtn} activeOpacity={0.85} onPress={() => onSelectFolder('target')}>
                         <Text style={styles.selectBtnText}>{targetFolder ? 'CHANGE' : 'SELECT'}</Text>
                     </TouchableOpacity>
+                </View>
+
+                <View style={styles.summaryCard}>
+                    <Text style={styles.sectionLabel}>LAST SCAN SUMMARY</Text>
+                    <View style={styles.summaryRow}>
+                        <View style={styles.summaryItem}>
+                            <Text style={styles.summaryValue}>{totalFilesCount || 0}</Text>
+                            <Text style={styles.summaryLabel}>TOTAL</Text>
+                        </View>
+                        <View style={styles.summaryItem}>
+                            <Text style={[styles.summaryValue, styles.summaryValueCopy]}>{pendingUpdateCount || 0}</Text>
+                            <Text style={styles.summaryLabel}>TO COPY</Text>
+                        </View>
+                        <View style={styles.summaryItem}>
+                            <Text style={[styles.summaryValue, styles.summaryValueDelete]}>{pendingDeleteCount || 0}</Text>
+                            <Text style={styles.summaryLabel}>TO DELETE</Text>
+                        </View>
+                        <View style={styles.summaryItem}>
+                            <Text style={[styles.summaryValue, styles.summaryValueError]}>{filesWithError.length}</Text>
+                            <Text style={styles.summaryLabel}>ERRORS</Text>
+                        </View>
+                    </View>
                 </View>
 
                 <View style={styles.storageCard}>
