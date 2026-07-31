@@ -1,21 +1,23 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { applyPlanWithProgress, scanAndPlan } from '../logic/organizer';
 import { defaultConfig } from '../logic/defaultConfig';
 import { SCREEN, SOURCE_MODE } from '../logic/appConstants';
-import { loadArtifacts, saveArtifacts } from '../logic/storage';
+import { loadArtifacts, loadRuntimeConfig, saveArtifacts, saveRuntimeConfig } from '../logic/storage';
+import {
+    buildDirectoryHandleFromUri,
+    copyFileToTarget,
+    deleteFileFromTarget,
+    loadDirectoryTreeFromUri,
+    pickDirectoryHandle,
+    pickDirectoryTree,
+    supportsDirectoryPicker,
+} from '../logic/fileSystemAccess';
 import {
     buildSyncDraft,
     createActivityLogEntry,
     mapFilesWithError,
     updateRunFromProgressEvent,
 } from './progressHelpers';
-import {
-    copyFileToTarget,
-    deleteFileFromTarget,
-    pickDirectoryHandle,
-    pickDirectoryTree,
-    supportsDirectoryPicker,
-} from '../logic/fileSystemAccess';
 import { formatLastRunLabel, notify } from '../utils/uiHelpers';
 
 function statsCount(stats, key) {
@@ -24,11 +26,13 @@ function statsCount(stats, key) {
 
 export function useOrganizerApp() {
     const initialArtifacts = useMemo(() => loadArtifacts(), []);
+    const initialRuntimeConfig = useMemo(() => loadRuntimeConfig(), []);
 
-    const [sourceFolder, setSourceFolder] = useState('');
-    const [targetFolder, setTargetFolder] = useState('');
+    const [sourceFolder, setSourceFolder] = useState(initialRuntimeConfig.sourceFolder);
+    const [targetFolder, setTargetFolder] = useState(initialRuntimeConfig.targetFolder);
     const [sourceFiles, setSourceFiles] = useState([]);
     const [sourceMode, setSourceMode] = useState(SOURCE_MODE.FILESYSTEM);
+    const [sourceDirectory, setSourceDirectory] = useState(null);
     const [targetDirectory, setTargetDirectory] = useState(null);
     const [artifacts, setArtifacts] = useState(initialArtifacts);
     const [lastRunText, setLastRunText] = useState(formatLastRunLabel(initialArtifacts.log));
@@ -56,10 +60,62 @@ export function useOrganizerApp() {
     const pendingUpdateCount = Object.keys(artifacts.toupdate || {}).length;
     const liveApplyReady = sourceMode === SOURCE_MODE.FILESYSTEM && Boolean(targetDirectory?.handle);
 
+    useEffect(() => {
+        if (initialRuntimeConfig.sourceFolder) {
+            try {
+                const restoredSource = buildDirectoryHandleFromUri(initialRuntimeConfig.sourceFolder);
+                setSourceDirectory(restoredSource);
+                setSourceFolder(restoredSource.rootPath);
+                setSourceMode(SOURCE_MODE.FILESYSTEM);
+            } catch (_error) {
+                setSourceFolder('');
+            }
+        }
+
+        if (initialRuntimeConfig.targetFolder) {
+            try {
+                const restoredTarget = buildDirectoryHandleFromUri(initialRuntimeConfig.targetFolder);
+                setTargetDirectory(restoredTarget);
+                setTargetFolder(restoredTarget.rootPath);
+            } catch (_error) {
+                setTargetFolder('');
+            }
+        }
+    }, [initialRuntimeConfig.sourceFolder, initialRuntimeConfig.targetFolder]);
+
     function persist(nextArtifacts) {
         setArtifacts(nextArtifacts);
         saveArtifacts(nextArtifacts);
         setLastRunText(formatLastRunLabel(nextArtifacts.log));
+    }
+
+    function persistRuntimeFolders(nextSourceFolder, nextTargetFolder) {
+        saveRuntimeConfig({
+            sourceFolder: String(nextSourceFolder || '').trim(),
+            targetFolder: String(nextTargetFolder || '').trim(),
+        });
+    }
+
+    async function ensureSourceFilesLoaded() {
+        if (sourceFiles.length > 0) {
+            return sourceFiles;
+        }
+
+        const sourceRoot = String(sourceFolder || '').trim();
+        if (!sourceRoot) {
+            return [];
+        }
+
+        try {
+            const loaded = await loadDirectoryTreeFromUri(sourceRoot);
+            setSourceDirectory({ handle: loaded.handle, rootPath: loaded.rootPath });
+            setSourceFolder(loaded.rootPath);
+            setSourceFiles(loaded.files);
+            setSourceMode(SOURCE_MODE.FILESYSTEM);
+            return loaded.files;
+        } catch (_error) {
+            return [];
+        }
     }
 
     async function executeOperation(operation, sourceHandleMap, selectedTarget) {
@@ -89,9 +145,9 @@ export function useOrganizerApp() {
         });
     }
 
-    async function runApplyWithProgress(plannedAtStart) {
+    async function runApplyWithProgress(plannedAtStart, sourceFilesAtStart) {
         const sourceHandleMap = new Map(
-            sourceFiles
+            sourceFilesAtStart
                 .filter((item) => item?.sourceHandle)
                 .map((item) => [item.filepath, item.sourceHandle])
         );
@@ -139,7 +195,9 @@ export function useOrganizerApp() {
                     const picked = await pickDirectoryTree();
                     setSourceFolder(picked.rootPath);
                     setSourceFiles(picked.files);
+                    setSourceDirectory({ handle: picked.handle, rootPath: picked.rootPath });
                     setSourceMode(SOURCE_MODE.FILESYSTEM);
+                    persistRuntimeFolders(picked.rootPath, targetFolder);
                     notify(`Selected ${picked.files.length} file(s) from ${picked.rootPath}`);
                 } catch (error) {
                     if (String(error?.name || '') !== 'AbortError') {
@@ -158,6 +216,7 @@ export function useOrganizerApp() {
                 const picked = await pickDirectoryHandle('readwrite');
                 setTargetFolder(picked.rootPath);
                 setTargetDirectory(picked);
+                persistRuntimeFolders(sourceFolder, picked.rootPath);
                 notify(`Selected target folder ${picked.rootPath}`);
             } catch (error) {
                 if (String(error?.name || '') !== 'AbortError') {
@@ -170,22 +229,31 @@ export function useOrganizerApp() {
         notify('Target folder picking is unavailable on this device.');
     }
 
-    function handlePreview() {
-        if (sourceFiles.length === 0) {
+    async function handlePreview() {
+        const loadedSourceFiles = await ensureSourceFilesLoaded();
+        if (loadedSourceFiles.length === 0) {
             notify('No source files loaded. Pick a source folder using the folder picker.');
             return;
         }
 
         try {
-            const planned = scanAndPlan(runtimeConfig, sourceFiles, artifacts);
+            const planned = scanAndPlan(runtimeConfig, loadedSourceFiles, artifacts);
             persist(planned);
+
+            const toUpdate = Object.keys(planned.toupdate || {}).length;
+            const toDelete = Object.keys(planned.todelete || {}).length;
+            if (toUpdate === 0 && toDelete === 0) {
+                notify('Sync preview complete. No changes were detected.');
+            } else {
+                notify(`Sync preview complete. Ready to copy ${toUpdate} and delete ${toDelete}.`);
+            }
         } catch (error) {
             notify(String(error?.message || error));
         }
     }
 
     function handleScanOnly() {
-        handlePreview();
+        void handlePreview();
     }
 
     function handleCancelPlan() {
@@ -200,9 +268,27 @@ export function useOrganizerApp() {
     }
 
     async function handleApply() {
-        if (pendingUpdateCount === 0 && pendingDeleteCount === 0) {
-            notify('No pending updates to apply. Run preview first.');
+        const loadedSourceFiles = await ensureSourceFilesLoaded();
+        if (loadedSourceFiles.length === 0) {
+            notify('No source files loaded. Pick a source folder using the folder picker.');
             return;
+        }
+
+        if (pendingUpdateCount === 0 && pendingDeleteCount === 0) {
+            try {
+                const planned = scanAndPlan(runtimeConfig, loadedSourceFiles, artifacts);
+                persist(planned);
+
+                const freshUpdates = Object.keys(planned.toupdate || {}).length;
+                const freshDeletes = Object.keys(planned.todelete || {}).length;
+                if (freshUpdates === 0 && freshDeletes === 0) {
+                    notify('No pending updates to apply. Nothing changed.');
+                    return;
+                }
+            } catch (error) {
+                notify(String(error?.message || error));
+                return;
+            }
         }
 
         if (sourceMode !== SOURCE_MODE.FILESYSTEM || !targetDirectory?.handle) {
@@ -212,17 +298,18 @@ export function useOrganizerApp() {
             return;
         }
 
+        const currentArtifacts = loadArtifacts();
         const plannedAtStart = {
-            ...artifacts,
-            toupdate: { ...(artifacts.toupdate || {}) },
-            todelete: { ...(artifacts.todelete || {}) },
+            ...currentArtifacts,
+            toupdate: { ...(currentArtifacts.toupdate || {}) },
+            todelete: { ...(currentArtifacts.todelete || {}) },
         };
         const draft = buildSyncDraft(plannedAtStart);
         setSyncProgress(draft);
         setActiveScreen(SCREEN.PROGRESS);
 
         try {
-            await runApplyWithProgress(plannedAtStart);
+            await runApplyWithProgress(plannedAtStart, loadedSourceFiles);
         } catch (error) {
             setSyncProgress((previous) =>
                 previous

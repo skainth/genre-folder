@@ -80,6 +80,19 @@ function directoryDisplayPath(directory) {
     return raw.replace(/\/+$/, '');
 }
 
+function createDirectoryFromUri(uri) {
+    const normalizedUri = String(uri || '').trim();
+    if (!normalizedUri) {
+        throw new Error('Directory URI is required.');
+    }
+
+    const directory = new Directory(normalizedUri);
+    if (!directory.exists) {
+        throw new Error(`Directory is not accessible: ${normalizedUri}`);
+    }
+    return directory;
+}
+
 export async function pickDirectoryTree() {
     if (!isNativeDirectoryPickerSupported()) {
         throw new Error('Android directory picker is not available in this build.');
@@ -107,6 +120,28 @@ export async function pickDirectoryHandle(mode = 'readwrite') {
     return {
         handle: directory,
         rootPath: directoryDisplayPath(directory),
+    };
+}
+
+export function buildDirectoryHandleFromUri(uri) {
+    const directory = createDirectoryFromUri(uri);
+    return {
+        handle: directory,
+        rootPath: directoryDisplayPath(directory),
+    };
+}
+
+export async function loadDirectoryTreeFromUri(uri) {
+    const directory = createDirectoryFromUri(uri);
+    const rootPath = directoryDisplayPath(directory);
+    const files = [];
+
+    await traverseNativeDirectory(directory, rootPath, '', files);
+
+    return {
+        handle: directory,
+        rootPath,
+        files,
     };
 }
 
