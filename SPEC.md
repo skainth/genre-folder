@@ -2,7 +2,7 @@
 
 ## 1. Document Control
 - Type: Software Requirements Specification
-- Version: 1.4 (condensed)
+- Version: 1.5 (condensed)
 - Last updated: 2026-07-31
 
 ## 2. Problem and Goal
@@ -15,6 +15,7 @@ In scope:
 - Genre parsing and one-to-many destination mapping
 - Incremental plan generation and apply (copy/delete)
 - Local artifacts, logs, and progress UI
+- User-editable runtime configuration stored outside the app-private data folder
 
 Out of scope:
 - Cloud or remote storage sync
@@ -48,6 +49,11 @@ Rules:
 - source and target must not resolve to the same folder path
 - allowedExtentions: case-insensitive allowlist
 - Others: fallback mapping
+
+Persistence notes:
+- The editable runtime config file must live in a user-accessible documents folder outside the app-private data folder so it can be edited with a normal text editor.
+- Existing installs may migrate from the legacy app-private runtime config path, but the active file should be written to the user-accessible location.
+- Local artifacts remain app-private.
 
 ## 6. Artifact Contract
 - db.json: canonical source state and resolved targets
@@ -155,11 +161,17 @@ stats.json categories must include:
 ### FR-014 Settings
 - Settings accessible from home or main screen.
 - Supports editing genre mapping, extension filters, reset/clear config, and log access.
+- Runtime source/target configuration must be stored in a user-editable documents folder outside the app-private data folder.
 
 ### FR-015 Screen Controller Separation
 - Home screen logic and processing screen logic must be implemented in separate code modules/controllers.
 - Home screen module/controller handles folder selection, validation prompts, and dry-run entry actions.
 - Processing screen module/controller handles dry-run display state, current-file-in-process updates, and Sync Now apply execution.
+
+### FR-016 Runtime Config Storage Location
+- The runtime source/target config JSON must be written to a user-accessible folder outside the app-private data area.
+- The app should continue reading legacy config data if present, but new saves use the user-accessible location.
+- The storage location should be easy to open and edit with any text editor.
 
 ## 8. Non-Functional Requirements
 - Reliability: one-file failure must not abort full run.
@@ -177,7 +189,7 @@ stats.json categories must include:
 ## 10. Execution Model
 1. Start (Dry Run): read source files, discover files, parse metadata, and classify outcomes.
 2. Plan: compute toupdate/todelete from scan + db and present results on processing screen.
-3. Sync Now (Apply): execute delete/copy and persist updated artifacts.
+3. Sync Now (Apply): execute delete/copy, then persist updated artifacts only after the file operations complete.
 
 ## 11. Acceptance Criteria
 - AC-001 Cold Start: valid files are planned and copied, db is created.
@@ -190,3 +202,4 @@ stats.json categories must include:
 - AC-008 Start Dry Run: pressing Start reads source files, shows planned add/delete/error items, and performs no target mutations.
 - AC-009 Sync Now Apply: pressing Sync Now runs actual copy/delete and updates db/artifacts accordingly.
 - AC-010 Live Current File: during Sync Now execution, processing screen displays the current file/operation being executed.
+- AC-011 Editable Runtime Config: runtime source/target config is stored in a user-editable folder outside the app-private data directory and legacy config is still readable.
