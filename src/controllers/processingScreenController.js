@@ -7,6 +7,7 @@ export function createProcessingScreenController(deps) {
         setActiveScreen,
         setSyncProgress,
         syncProgress,
+        pendingPlannedArtifactsRef,
         activityLogs,
         artifacts,
         sourceMode,
@@ -27,6 +28,7 @@ export function createProcessingScreenController(deps) {
     } = deps;
 
     function closePreparingStateWithMessage(message) {
+        pendingPlannedArtifactsRef.current = null;
         setSyncProgress((previous) =>
             previous
                 ? {
@@ -71,7 +73,7 @@ export function createProcessingScreenController(deps) {
                 }
 
                 const planned = scanAndPlan(runtimeConfig, loadedSourceFiles, artifacts);
-                persist(planned);
+                pendingPlannedArtifactsRef.current = planned;
                 plannedArtifacts = planned;
 
                 const freshUpdates = Object.keys(planned.toupdate || {}).length;
@@ -110,7 +112,7 @@ export function createProcessingScreenController(deps) {
             return;
         }
 
-        const currentArtifacts = artifacts;
+        const currentArtifacts = pendingPlannedArtifactsRef.current || artifacts;
         const pendingUpdates = Object.keys(currentArtifacts.toupdate || {}).length;
         const pendingDeletes = Object.keys(currentArtifacts.todelete || {}).length;
         if (pendingUpdates === 0 && pendingDeletes === 0) {
@@ -167,6 +169,7 @@ export function createProcessingScreenController(deps) {
             notify('Sync is still in progress.');
             return;
         }
+        pendingPlannedArtifactsRef.current = null;
         setActiveScreen(SCREEN.MAIN);
     }
 

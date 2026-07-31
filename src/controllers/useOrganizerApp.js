@@ -66,6 +66,7 @@ export function useOrganizerApp() {
     const [syncProgress, setSyncProgress] = useState(null);
     const [activityLogs, setActivityLogs] = useState([]);
     const [isStartProcessing, setIsStartProcessing] = useState(false);
+    const pendingPlannedArtifactsRef = useRef(null);
 
     const runtimeConfig = useMemo(
         () => ({
@@ -241,6 +242,8 @@ export function useOrganizerApp() {
         notify(
             `Apply complete. Copied ${applied.operations.copy.length} target file(s), deleted ${applied.operations.delete.length} target file(s), failed ${(applied.operations.failed || []).length} operation(s).`
         );
+
+        pendingPlannedArtifactsRef.current = null;
     }
 
     const homeController = createHomeScreenController({
@@ -274,6 +277,7 @@ export function useOrganizerApp() {
         setActiveScreen,
         setSyncProgress,
         syncProgress,
+        pendingPlannedArtifactsRef,
         activityLogs,
         artifacts,
         sourceMode,
