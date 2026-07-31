@@ -35,14 +35,31 @@ jobs:
       - name: Generate native Android project
         run: npx expo prebuild --platform android --non-interactive
 
-      - name: Build debug APK
+      - name: Make release APK installable without a custom keystore
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          build_gradle = Path('android/app/build.gradle')
+          contents = build_gradle.read_text()
+          needle = "        release {\n            minifyEnabled false\n"
+          replacement = "        release {\n            signingConfig signingConfigs.debug\n            minifyEnabled false\n"
+
+          if needle not in contents:
+              raise SystemExit('Expected release block was not found in android/app/build.gradle')
+
+          build_gradle.write_text(contents.replace(needle, replacement, 1))
+          PY
+
+      - name: Build release APK
         working-directory: android
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mp3-sorter-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: mp3-sorter-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
