@@ -443,6 +443,7 @@ export async function applyPlanWithProgress(existingArtifacts, plannedArtifacts,
     const planned = normalizeArtifacts(plannedArtifacts);
     const executeOperation = options.executeOperation;
     const onProgress = options.onProgress;
+    const yieldToUI = options.yieldToUI;
     const operations = buildOperationsFromPlan(planned);
     const totalOperations = operations.length;
     const startedAt = Date.now();
@@ -480,6 +481,10 @@ export async function applyPlanWithProgress(existingArtifacts, plannedArtifacts,
                 percentComplete: totalOperations === 0 ? 100 : Math.round((completedOperations / totalOperations) * 100),
                 etaSeconds: etaBefore,
             });
+        }
+
+        if (typeof yieldToUI === 'function') {
+            await yieldToUI();
         }
 
         try {

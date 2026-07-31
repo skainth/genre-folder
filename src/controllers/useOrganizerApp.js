@@ -216,6 +216,7 @@ export function useOrganizerApp() {
                     return updateRunFromProgressEvent(previous, event);
                 });
             },
+            yieldToUI: waitForNextFrame,
         });
 
         persist(applied);
