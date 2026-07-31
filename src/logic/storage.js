@@ -2,7 +2,9 @@ import { Directory, File, Paths } from 'expo-file-system';
 
 const STORAGE_DIR = new Directory(Paths.document, 'mp3-sorter');
 const STORAGE_FILE = new File(STORAGE_DIR, 'artifacts.json');
-const RUNTIME_CONFIG_FILE = new File(STORAGE_DIR, 'runtime-config.json');
+const CONFIG_DIR = new Directory(Paths.document, 'mp3-sorter-config');
+const CONFIG_FILE = new File(CONFIG_DIR, 'runtime-config.json');
+const LEGACY_RUNTIME_CONFIG_FILE = new File(STORAGE_DIR, 'runtime-config.json');
 
 function createDefaultArtifacts() {
     return {
@@ -74,11 +76,21 @@ export function saveArtifacts(artifacts) {
 
 export function loadRuntimeConfig() {
     try {
-        if (!RUNTIME_CONFIG_FILE.exists) {
+        if (CONFIG_FILE.exists) {
+            const raw = CONFIG_FILE.textSync();
+            if (!raw) {
+                return createDefaultRuntimeConfig();
+            }
+
+            const parsed = JSON.parse(raw);
+            return sanitizeRuntimeConfig(parsed);
+        }
+
+        if (!LEGACY_RUNTIME_CONFIG_FILE.exists) {
             return createDefaultRuntimeConfig();
         }
 
-        const raw = RUNTIME_CONFIG_FILE.textSync();
+        const raw = LEGACY_RUNTIME_CONFIG_FILE.textSync();
         if (!raw) {
             return createDefaultRuntimeConfig();
         }
@@ -94,11 +106,11 @@ export function saveRuntimeConfig(config) {
     try {
         const normalized = sanitizeRuntimeConfig(config);
 
-        if (!STORAGE_DIR.exists) {
-            STORAGE_DIR.create({ idempotent: true, intermediates: true });
+        if (!CONFIG_DIR.exists) {
+            CONFIG_DIR.create({ idempotent: true, intermediates: true });
         }
 
-        RUNTIME_CONFIG_FILE.write(JSON.stringify(normalized));
+        CONFIG_FILE.write(JSON.stringify(normalized));
     } catch (_error) {
         // Ignore storage errors; app can continue with in-memory runtime config.
     }
