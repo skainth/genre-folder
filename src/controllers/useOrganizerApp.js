@@ -312,28 +312,14 @@ export function useOrganizerApp() {
             }
 
             let plannedArtifacts = artifacts;
-            if (pendingUpdateCount === 0 && pendingDeleteCount === 0) {
-                try {
-                    const planned = scanAndPlan(runtimeConfig, loadedSourceFiles, artifacts);
-                    persist(planned);
-                    plannedArtifacts = planned;
+            try {
+                const planned = scanAndPlan(runtimeConfig, loadedSourceFiles, artifacts);
+                persist(planned);
+                plannedArtifacts = planned;
 
-                    const freshUpdates = Object.keys(planned.toupdate || {}).length;
-                    const freshDeletes = Object.keys(planned.todelete || {}).length;
-                    if (freshUpdates === 0 && freshDeletes === 0) {
-                        setSyncProgress((previous) =>
-                            previous
-                                ? {
-                                    ...previous,
-                                    isRunning: false,
-                                    isPreparing: false,
-                                }
-                                : previous
-                        );
-                        notify('No pending updates to apply. Nothing changed.');
-                        return;
-                    }
-                } catch (error) {
+                const freshUpdates = Object.keys(planned.toupdate || {}).length;
+                const freshDeletes = Object.keys(planned.todelete || {}).length;
+                if (freshUpdates === 0 && freshDeletes === 0) {
                     setSyncProgress((previous) =>
                         previous
                             ? {
@@ -343,9 +329,21 @@ export function useOrganizerApp() {
                             }
                             : previous
                     );
-                    notify(String(error?.message || error));
+                    notify('No pending updates to apply. Nothing changed.');
                     return;
                 }
+            } catch (error) {
+                setSyncProgress((previous) =>
+                    previous
+                        ? {
+                            ...previous,
+                            isRunning: false,
+                            isPreparing: false,
+                        }
+                        : previous
+                );
+                notify(String(error?.message || error));
+                return;
             }
 
             if (sourceMode !== SOURCE_MODE.FILESYSTEM || !targetDirectory?.handle) {

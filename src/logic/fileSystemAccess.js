@@ -184,7 +184,7 @@ export async function copyFileToTarget(params) {
         let targetDirectory = targetRootHandle;
         for (const part of dirParts) {
             targetDirectory = targetDirectory.createDirectory(part);
-            targetDirectory.create({ idempotent: true, intermediates: true });
+            await targetDirectory.create({ idempotent: true, intermediates: true });
         }
 
         const destinationFile = new File(targetDirectory, fileName);
@@ -246,7 +246,7 @@ export async function deleteFileFromTarget(params) {
             if (!file.exists) {
                 return false;
             }
-            file.delete();
+            await file.delete();
             return true;
         } catch (error) {
             const name = String(error?.name || '');

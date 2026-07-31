@@ -129,7 +129,7 @@ export default function OrganizerScreen(props) {
                         <Text style={styles.alertBody}>
                             {filesWithError.length > 0
                                 ? `Detected ${filesWithError.length} file issue(s). Review and grant required permissions before sync.`
-                                : 'The app needs "All Files Access" to write to target storage. Please authorize to proceed.'}
+                                : 'Choose the destination folder with the picker to grant write access before sync.'}
                         </Text>
                         <TouchableOpacity onPress={() => onSelectFolder('target')}>
                             <Text style={styles.grantText}>GRANT ACCESS NOW</Text>
