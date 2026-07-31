@@ -2,7 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { applyPlanWithProgress, scanAndPlan } from '../logic/organizer';
 import { defaultConfig } from '../logic/defaultConfig';
 import { SCREEN, SOURCE_MODE } from '../logic/appConstants';
-import { loadArtifacts, loadRuntimeConfig, saveArtifacts, saveRuntimeConfig } from '../logic/storage';
+import {
+    getRuntimeConfigAccessIssues,
+    loadArtifacts,
+    loadRuntimeConfig,
+    saveArtifacts,
+    saveRuntimeConfig,
+} from '../logic/storage';
 import {
     buildDirectoryHandleFromUri,
     copyFileToTarget,
@@ -67,6 +73,7 @@ export function useOrganizerApp() {
     const [activityLogs, setActivityLogs] = useState([]);
     const [isStartProcessing, setIsStartProcessing] = useState(false);
     const pendingPlannedArtifactsRef = useRef(null);
+    const lastRuntimeConfigAlertRef = useRef('');
 
     const runtimeConfig = useMemo(
         () => ({
@@ -88,11 +95,32 @@ export function useOrganizerApp() {
     const pendingUpdateCount = Object.keys(artifacts.toupdate || {}).length;
     const liveApplyReady = sourceMode === SOURCE_MODE.FILESYSTEM && Boolean(targetDirectory?.handle);
 
+    function notifyRuntimeConfigAccessIssue(message) {
+        const text = String(message || '').trim();
+        if (!text) {
+            return;
+        }
+
+        if (lastRuntimeConfigAlertRef.current === text) {
+            return;
+        }
+
+        lastRuntimeConfigAlertRef.current = text;
+        notify(text);
+    }
+
     function persistRuntimeFolders(nextSourceFolder, nextTargetFolder) {
-        saveRuntimeConfig({
+        const isSaved = saveRuntimeConfig({
             sourceFolder: String(nextSourceFolder || '').trim(),
             targetFolder: String(nextTargetFolder || '').trim(),
         });
+
+        if (!isSaved) {
+            const issues = getRuntimeConfigAccessIssues();
+            notifyRuntimeConfigAccessIssue(
+                issues.writeError || `Runtime config is not writable (${issues.configPath}).`
+            );
+        }
     }
 
     function setSourceFolderState(nextSourceFolder) {
@@ -108,6 +136,11 @@ export function useOrganizerApp() {
     }
 
     useEffect(() => {
+        const accessIssues = getRuntimeConfigAccessIssues();
+        if (accessIssues.readError) {
+            notifyRuntimeConfigAccessIssue(accessIssues.readError);
+        }
+
         if (initialRuntimeConfig.sourceFolder) {
             try {
                 const restoredSource = buildDirectoryHandleFromUri(initialRuntimeConfig.sourceFolder);

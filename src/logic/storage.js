@@ -5,6 +5,10 @@ const STORAGE_FILE = new File(STORAGE_DIR, 'artifacts.json');
 const CONFIG_DIR = new Directory(Paths.document, 'mp3-sorter-config');
 const CONFIG_FILE = new File(CONFIG_DIR, 'runtime-config.json');
 const LEGACY_RUNTIME_CONFIG_FILE = new File(STORAGE_DIR, 'runtime-config.json');
+const CONFIG_PATH_LABEL = 'Documents/mp3-sorter-config/runtime-config.json';
+
+let runtimeConfigReadError = '';
+let runtimeConfigWriteError = '';
 
 function createDefaultArtifacts() {
     return {
@@ -75,6 +79,8 @@ export function saveArtifacts(artifacts) {
 }
 
 export function loadRuntimeConfig() {
+    runtimeConfigReadError = '';
+
     try {
         if (CONFIG_FILE.exists) {
             const raw = CONFIG_FILE.textSync();
@@ -97,12 +103,15 @@ export function loadRuntimeConfig() {
 
         const parsed = JSON.parse(raw);
         return sanitizeRuntimeConfig(parsed);
-    } catch (_error) {
+    } catch (error) {
+        runtimeConfigReadError = `Runtime config is not readable (${CONFIG_PATH_LABEL}). ${String(error?.message || error)}`;
         return createDefaultRuntimeConfig();
     }
 }
 
 export function saveRuntimeConfig(config) {
+    runtimeConfigWriteError = '';
+
     try {
         const normalized = sanitizeRuntimeConfig(config);
 
@@ -111,7 +120,17 @@ export function saveRuntimeConfig(config) {
         }
 
         CONFIG_FILE.write(JSON.stringify(normalized));
-    } catch (_error) {
-        // Ignore storage errors; app can continue with in-memory runtime config.
+        return true;
+    } catch (error) {
+        runtimeConfigWriteError = `Runtime config is not writable (${CONFIG_PATH_LABEL}). ${String(error?.message || error)}`;
+        return false;
     }
+}
+
+export function getRuntimeConfigAccessIssues() {
+    return {
+        readError: runtimeConfigReadError,
+        writeError: runtimeConfigWriteError,
+        configPath: CONFIG_PATH_LABEL,
+    };
 }
