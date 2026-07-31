@@ -21,12 +21,43 @@ function makeLogFileName() {
     return `sync_log_${stamp}.txt`;
 }
 
+function buildParseErrorItems(parseStatErrors) {
+    return Object.entries(parseStatErrors || {}).map(([path, error], index) => ({
+        id: `parse-${index}`,
+        fileName: fileNameFromPath(path),
+        sourcePath: String(path),
+        status: 'failed',
+        error: String(error || 'metadata parse failed'),
+        errors: [String(error || 'metadata parse failed')],
+        kind: 'parse',
+    }));
+}
+
 export function mapFilesWithError(parseStatErrors) {
     return Object.entries(parseStatErrors || {}).map(([path, error]) => ({
         path,
         name: fileNameFromPath(path),
         error: String(error),
     }));
+}
+
+export function buildPreparingDraft(currentArtifacts) {
+    const parseErrorItems = buildParseErrorItems(currentArtifacts?.stats?.parseStatErrors);
+    return {
+        runId: `sync-${Date.now()}`,
+        startedAt: new Date().toISOString(),
+        logFileName: makeLogFileName(),
+        totalOperations: 0,
+        completedOperations: 0,
+        percentComplete: 0,
+        etaSeconds: 0,
+        isRunning: true,
+        isPreparing: true,
+        copyItems: [],
+        deleteItems: [],
+        errorItems: parseErrorItems,
+        liveLogLines: [],
+    };
 }
 
 export function buildSyncDraft(currentArtifacts) {
@@ -81,6 +112,7 @@ export function buildSyncDraft(currentArtifacts) {
     });
 
     const totalOperations = copyItems.length + deleteItems.length;
+    const parseErrorItems = buildParseErrorItems(currentArtifacts?.stats?.parseStatErrors);
     return {
         runId: `sync-${Date.now()}`,
         startedAt: new Date().toISOString(),
@@ -90,8 +122,10 @@ export function buildSyncDraft(currentArtifacts) {
         percentComplete: 0,
         etaSeconds: totalOperations,
         isRunning: true,
+        isPreparing: false,
         copyItems,
         deleteItems,
+        errorItems: parseErrorItems,
         liveLogLines: [],
     };
 }

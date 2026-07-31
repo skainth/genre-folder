@@ -52,7 +52,16 @@ export default function SyncProgressScreen(props) {
     }
 
     const progressWidth = `${Math.max(0, Math.min(100, run.percentComplete || 0))}%`;
-    const errorItems = [...(run.copyItems || []).filter((item) => item.status === 'failed'), ...(run.deleteItems || []).filter((item) => item.status === 'failed')];
+    const operationErrorItems = [
+        ...(run.copyItems || []).filter((item) => item.status === 'failed'),
+        ...(run.deleteItems || []).filter((item) => item.status === 'failed'),
+    ];
+    const errorItems = [...(run.errorItems || []), ...operationErrorItems];
+    const changedCount = run.copyItems.length;
+    const deletedCount = run.deleteItems.length;
+    const subtitle = run.isPreparing
+        ? 'Preparing file plan and loading changed/deleted/error files'
+        : `Processing ${run.totalOperations} operations`;
     const bottomLabel = run.isRunning ? 'Done (Processing...)' : 'Back to Organizer';
 
     return (
@@ -62,7 +71,7 @@ export default function SyncProgressScreen(props) {
                 <View style={styles.topRow}>
                     <View>
                         <Text style={styles.title}>Syncing Files...</Text>
-                        <Text style={styles.subtitle}>Processing {run.totalOperations} operations</Text>
+                        <Text style={styles.subtitle}>{subtitle}</Text>
                     </View>
                     <Text style={styles.percent}>{run.percentComplete}%</Text>
                 </View>
@@ -75,6 +84,10 @@ export default function SyncProgressScreen(props) {
                     <Text style={styles.metaLeft}>{run.completedOperations} of {run.totalOperations} completed</Text>
                     <Text style={styles.metaRight}>{errorItems.length} Errors detected</Text>
                 </View>
+
+                {run.isPreparing && (
+                    <Text style={styles.emptyState}>Preparing sync details...</Text>
+                )}
 
                 <View style={styles.sectionHeaderError}>
                     <View style={styles.sectionTitleWrap}>
@@ -104,7 +117,7 @@ export default function SyncProgressScreen(props) {
                 <View style={[styles.sectionHeader, { marginTop: 14 }]}>
                     <View style={styles.sectionTitleWrap}>
                         <MaterialCommunityIcons name="content-copy" size={14} color="#5C63F0" />
-                        <Text style={styles.sectionTitle}>SYNCING TO TARGET ({run.copyItems.length})</Text>
+                        <Text style={styles.sectionTitle}>CHANGED FILES ({changedCount})</Text>
                     </View>
                 </View>
 
@@ -125,13 +138,14 @@ export default function SyncProgressScreen(props) {
                                 ))}
                             </View>
                         ))}
+                        {run.copyItems.length === 0 && <Text style={styles.emptyState}>No changed files queued.</Text>}
                     </ScrollView>
                 </View>
 
                 <View style={[styles.sectionHeader, { marginTop: 14 }]}>
                     <View style={styles.sectionTitleWrap}>
                         <Ionicons name="trash-outline" size={14} color="#8C96A8" />
-                        <Text style={styles.sectionTitle}>CLEANUP ({run.deleteItems.length})</Text>
+                        <Text style={styles.sectionTitle}>DELETED FILES ({deletedCount})</Text>
                     </View>
                 </View>
 
@@ -149,6 +163,7 @@ export default function SyncProgressScreen(props) {
                                 <Text style={styles.pathLineMuted}>Location: {item.removedFromPath}</Text>
                             </View>
                         ))}
+                        {run.deleteItems.length === 0 && <Text style={styles.emptyState}>No deleted files queued.</Text>}
                     </ScrollView>
                 </View>
 

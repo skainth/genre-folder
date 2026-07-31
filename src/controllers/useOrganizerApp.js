@@ -13,6 +13,7 @@ import {
     supportsDirectoryPicker,
 } from '../logic/fileSystemAccess';
 import {
+    buildPreparingDraft,
     buildSyncDraft,
     createActivityLogEntry,
     mapFilesWithError,
@@ -291,46 +292,85 @@ export function useOrganizerApp() {
         }
 
         setIsStartProcessing(true);
+        setActiveScreen(SCREEN.PROGRESS);
+        setSyncProgress(buildPreparingDraft(artifacts));
+
         try {
             const loadedSourceFiles = await ensureSourceFilesLoaded();
             if (loadedSourceFiles.length === 0) {
+                setSyncProgress((previous) =>
+                    previous
+                        ? {
+                            ...previous,
+                            isRunning: false,
+                            isPreparing: false,
+                        }
+                        : previous
+                );
                 notify('No source files loaded. Pick a source folder using the folder picker.');
                 return;
             }
 
+            let plannedArtifacts = artifacts;
             if (pendingUpdateCount === 0 && pendingDeleteCount === 0) {
                 try {
                     const planned = scanAndPlan(runtimeConfig, loadedSourceFiles, artifacts);
                     persist(planned);
+                    plannedArtifacts = planned;
 
                     const freshUpdates = Object.keys(planned.toupdate || {}).length;
                     const freshDeletes = Object.keys(planned.todelete || {}).length;
                     if (freshUpdates === 0 && freshDeletes === 0) {
+                        setSyncProgress((previous) =>
+                            previous
+                                ? {
+                                    ...previous,
+                                    isRunning: false,
+                                    isPreparing: false,
+                                }
+                                : previous
+                        );
                         notify('No pending updates to apply. Nothing changed.');
                         return;
                     }
                 } catch (error) {
+                    setSyncProgress((previous) =>
+                        previous
+                            ? {
+                                ...previous,
+                                isRunning: false,
+                                isPreparing: false,
+                            }
+                            : previous
+                    );
                     notify(String(error?.message || error));
                     return;
                 }
             }
 
             if (sourceMode !== SOURCE_MODE.FILESYSTEM || !targetDirectory?.handle) {
+                setSyncProgress((previous) =>
+                    previous
+                        ? {
+                            ...previous,
+                            isRunning: false,
+                            isPreparing: false,
+                        }
+                        : previous
+                );
                 notify(
                     'Live file execution requires picker-selected source and destination folders. Select both folders with the picker before starting sync.'
                 );
                 return;
             }
 
-            const currentArtifacts = loadArtifacts();
             const plannedAtStart = {
-                ...currentArtifacts,
-                toupdate: { ...(currentArtifacts.toupdate || {}) },
-                todelete: { ...(currentArtifacts.todelete || {}) },
+                ...plannedArtifacts,
+                toupdate: { ...(plannedArtifacts.toupdate || {}) },
+                todelete: { ...(plannedArtifacts.todelete || {}) },
             };
             const draft = buildSyncDraft(plannedAtStart);
             setSyncProgress(draft);
-            setActiveScreen(SCREEN.PROGRESS);
 
             try {
                 await runApplyWithProgress(plannedAtStart, loadedSourceFiles);
@@ -340,6 +380,7 @@ export function useOrganizerApp() {
                         ? {
                             ...previous,
                             isRunning: false,
+                            isPreparing: false,
                         }
                         : previous
                 );
